@@ -12,6 +12,11 @@ from salesman.conf import app_settings
 
 from .payment import PaymentMethod, payment_methods_pool
 
+from salesman.core.utils import get_salesman_model
+
+
+Basket = get_salesman_model("Basket")
+
 
 class PaymentMethodSerializer(serializers.Serializer):
     """
@@ -60,6 +65,13 @@ class CheckoutSerializer(serializers.Serializer):
         help_text=_("Extra is updated and null values are removed."),
     )
 
+    hook_id = serializers.CharField(
+        write_only=True,
+        required=False,
+        allow_blank=True,
+        help_text=_("Hook identifier for fetching the correct basket.")
+    )
+
     # Show payment methods with error on GET.
     payment_methods = PaymentMethodSerializer(many=True, read_only=True)
 
@@ -95,6 +107,14 @@ class CheckoutSerializer(serializers.Serializer):
             extra = {k: v for k, v in extra.items() if v is not None}
         # Validate using extra validator.
         return app_settings.SALESMAN_EXTRA_VALIDATOR(extra, context=self.context)
+
+    def validate_hook_id(self, value: str) -> str:
+        if value:
+            try:
+                basket = Basket.objects.get(hook_id=value)
+            except Basket.DoesNotExist:
+                raise ValidationError("No basket found for the given hook_id.")
+        return value
 
     def save(self, **kwargs: Any) -> None:
         basket, request = self.context["basket"], self.context["request"]

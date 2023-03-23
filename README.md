@@ -39,8 +39,6 @@ processing the checkout and payment operations as well as managing customer orde
 - Fully swappable **Order** and **Basket** models
 - [Wagtail](https://wagtail.io/) and **Django** admin implementation
 
-- If you provide an arbitrary 'Hook' identifier, you can manage multiple baskets. Useful for a restaurant POS where you may need to let some open orders until payment after service. THIS IS AN EXPERIMENTAL WORK IN PROGRESS. No warranties! Use at your own risk.
-
 ## Documentation
 
 Documentation is available on [Read the Docs](https://django-salesman.readthedocs.org).

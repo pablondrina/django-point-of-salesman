@@ -71,6 +71,8 @@ class BasketItemSerializer(serializers.ModelSerializer):
         default=dict, help_text=_("Extra is updated and null values are removed.")
     )
 
+    # hook_id = serializers.CharField(allow_blank=True, allow_null=True)  # Add this line
+
     class Meta:
         model = BasketItem
         fields = [
@@ -85,6 +87,7 @@ class BasketItemSerializer(serializers.ModelSerializer):
             "extra_rows",
             "total",
             "extra",
+            # "hook_id", # Add 'hook_id' to the fields list
         ]
         read_only_fields = fields
 
@@ -132,9 +135,18 @@ class BasketItemCreateSerializer(serializers.ModelSerializer):
     quantity = serializers.IntegerField(default=1, min_value=1)
     extra = serializers.JSONField(default=dict, help_text=_("Store extra JSON data."))
 
+    hook_id = serializers.CharField(allow_blank=True, allow_null=True)  # Add this line
+
     class Meta:
         model = BasketItem
-        fields = ["ref", "product_type", "product_id", "quantity", "extra"]
+        fields = [
+            "ref",
+            "product_type",
+            "product_id",
+            "quantity",
+            "extra",
+            "hook_id",
+        ]  # Add 'hook_id' to the fields list
 
     def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
         # Validate and set product from generic relation.
@@ -158,8 +170,23 @@ class BasketItemCreateSerializer(serializers.ModelSerializer):
         context["basket_item"] = self.instance
         return app_settings.SALESMAN_EXTRA_VALIDATOR(value, context=context)
 
+    # def create(self, validated_data: dict[str, Any]) -> BaseBasketItem:
+    #     basket = self.context["basket"]
+    #     item: BaseBasketItem = basket.add(
+    #         product=validated_data["product"],
+    #         quantity=validated_data["quantity"],
+    #         ref=validated_data.get("ref", None),
+    #         extra=validated_data.get("extra", None),
+    #     )
+    #     return item
+
     def create(self, validated_data: dict[str, Any]) -> BaseBasketItem:
         basket = self.context["basket"]
+        hook_id = validated_data.pop("hook_id", None)
+        if hook_id:
+            basket.hook_id = hook_id
+            basket.save()
+
         item: BaseBasketItem = basket.add(
             product=validated_data["product"],
             quantity=validated_data["quantity"],
@@ -182,10 +209,19 @@ class BasketSerializer(serializers.ModelSerializer):
     extra_rows = ExtraRowsField(read_only=True)
     total = PriceField(read_only=True)
     extra = serializers.JSONField(read_only=True)
+    hook_id = serializers.CharField(allow_blank=True, allow_null=True)  # Add this line
 
     class Meta:
         model = Basket
-        fields = ["id", "items", "subtotal", "extra_rows", "total", "extra"]
+        fields = [
+            "id",
+            "items",
+            "subtotal",
+            "extra_rows",
+            "total",
+            "extra",
+            "hook_id",
+        ]  # Add 'hook_id' to the fields list
 
     def to_representation(self, basket: BaseBasket) -> Any:
         basket.update(self.context["request"])

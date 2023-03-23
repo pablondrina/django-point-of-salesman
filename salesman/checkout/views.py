@@ -18,6 +18,8 @@ from salesman.core.utils import get_salesman_model
 from .payment import PaymentError, payment_methods_pool
 from .serializers import CheckoutSerializer
 
+from rest_framework.exceptions import ValidationError
+
 Basket = get_salesman_model("Basket")
 
 
@@ -37,11 +39,42 @@ class CheckoutViewSet(mixins.CreateModelMixin, viewsets.GenericViewSet):
     def get_queryset(self) -> None:
         pass
 
+    # def get_serializer_context(self) -> dict[str, Any]:
+    #     context = super().get_serializer_context()
+    #     context["basket"], _ = Basket.objects.get_or_create_from_request(self.request)
+    #     context["basket"].update(self.request)
+    #     return context
+
+    # def get_serializer_context(self) -> dict[str, Any]:
+    #     context = super().get_serializer_context()
+    #     hook_id = self.request.data.get('hook_id', None)
+    #     basket = Basket.objects.get_from_request_or_none(self.request, hook_id)
+
+    #     if basket is None:
+    #         raise ValidationError({"hook_id": _("No basket found for the given hook_id.")})
+
+    #     context["basket"] = basket
+    #     context["basket"].update(self.request)
+    #     return context
+
     def get_serializer_context(self) -> dict[str, Any]:
         context = super().get_serializer_context()
-        context["basket"], _ = Basket.objects.get_or_create_from_request(self.request)
-        context["basket"].update(self.request)
+        hook_id = self.request.data.get("hook_id")
+
+        if hook_id:
+            try:
+                context["basket"] = Basket.objects.get(hook_id=hook_id)
+            except Basket.DoesNotExist:
+                pass  # A validação do hook_id será tratada no CheckoutSerializer
+        else:
+            context["basket"], _ = Basket.objects.get_or_create_from_request(self.request)
+
+        if "basket" in context:
+            context["basket"].update(self.request)
         return context
+
+
+
 
     def check_permissions(self, request: Request) -> None:
         super().check_permissions(request)
@@ -60,14 +93,28 @@ class CheckoutViewSet(mixins.CreateModelMixin, viewsets.GenericViewSet):
     ) -> HttpResponseBase:
         return super().dispatch(request, *args, **kwargs)
 
+    # def create(self, request: Request, *args: Any, **kwargs: Any) -> Response:
+    #     """
+    #     Process the checkout, handle ``PaymentError``.
+    #     """
+    #     try:
+    #         return super().create(request, *args, **kwargs)
+    #     except PaymentError as e:
+    #         return Response({"detail": str(e)}, status=status.HTTP_402_PAYMENT_REQUIRED)
+
     def create(self, request: Request, *args: Any, **kwargs: Any) -> Response:
         """
-        Process the checkout, handle ``PaymentError``.
+        Process the checkout, handle ``PaymentError`` and ``ValidationError``.
         """
         try:
             return super().create(request, *args, **kwargs)
         except PaymentError as e:
             return Response({"detail": str(e)}, status=status.HTTP_402_PAYMENT_REQUIRED)
+        except ValidationError as e:
+            return Response(e.detail, status=status.HTTP_400_BAD_REQUEST)
+
+
+
 
     def list(self, request: Request, *args: Any, **kwargs: Any) -> Response:
         """

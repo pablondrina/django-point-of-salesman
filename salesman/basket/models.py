@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections import OrderedDict
 from decimal import Decimal
-from typing import TYPE_CHECKING, Any, Generator
+from typing import TYPE_CHECKING, Any, Generator, Optional
 
 from django.conf import settings
 from django.contrib.contenttypes.fields import GenericForeignKey
@@ -23,48 +23,58 @@ BASKET_ID_SESSION_KEY = "BASKET_ID"
 
 
 class BasketManager(models.Manager["BaseBasket"]):
-    def get_or_create_from_request(
-        self,
-        request: HttpRequest,
-    ) -> tuple[BaseBasket, bool]:
-        """
-        Get basket from request or create a new one.
-        If user is logged in session basket gets merged into a user basket.
+ def get_or_create_from_request(
+    self,
+    request: HttpRequest,
+    hook_id: Optional[str] = None,
+) -> tuple[BaseBasket, bool]:
+    """
+    Get basket from request or create a new one.
+    If staff user is logged in and hook_id is provided, baskets can be created and retrieved for different customers using hook_id.
+    Returns:
+        tuple: (basket, created)
+    """
+    if not hasattr(request, "session"):
+        request.session = {}
 
-        Returns:
-            tuple: (basket, created)
-        """
-        if not hasattr(request, "session"):
-            request.session = {}
+    if hook_id:
+        session_key = f"{BASKET_ID_SESSION_KEY}_{hook_id}"
+    else:
+        session_key = BASKET_ID_SESSION_KEY
+
+    try:
+        session_basket_id = request.session[session_key]
+        session_basket = self.get(id=session_basket_id, user=None)
+    except (KeyError, self.model.DoesNotExist):
+        session_basket = None
+
+    if hasattr(request, "user") and request.user.is_authenticated and request.user.is_staff and hook_id:
         try:
-            session_basket_id = request.session[BASKET_ID_SESSION_KEY]
-            session_basket = self.get(id=session_basket_id, user=None)
-        except (KeyError, self.model.DoesNotExist):
-            session_basket = None
+            basket, created = self.get_or_create(hook_id=hook_id)
+        except self.model.MultipleObjectsReturned:
+            # User has multiple baskets, merge them.
+            baskets = list(self.filter(hook_id=hook_id))
+            basket, created = baskets[0], False
+            for other in baskets[1:]:
+                basket.merge(other)
 
+        if session_basket:
+            # Merge session basket into user basket.
+            basket.merge(session_basket)
+
+        if session_key in request.session:
+            # Delete session basket id from session so that it doesn't get
+            # re-fetched while user is still logged in.
+            del request.session[session_key]
+
+    else:
         if hasattr(request, "user") and request.user.is_authenticated:
-            try:
-                basket, created = self.get_or_create(user_id=request.user.id)
-            except self.model.MultipleObjectsReturned:
-                # User has multiple baskets, merge them.
-                baskets = list(self.filter(user=request.user.id))
-                basket, created = baskets[0], False
-                for other in baskets[1:]:
-                    basket.merge(other)
-
-            if session_basket:
-                # Merge session basket into user basket.
-                basket.merge(session_basket)
-
-            if BASKET_ID_SESSION_KEY in request.session:
-                # Delete session basket id from session so that it doesn't get
-                # re-fetched while user is still logged in.
-                del request.session[BASKET_ID_SESSION_KEY]
+            basket, created = self.get_or_create(user_id=request.user.id)
         else:
             basket, created = session_basket or self.create(), not session_basket
-            request.session[BASKET_ID_SESSION_KEY] = basket.pk
+            request.session[session_key] = basket.pk
 
-        return basket, created
+    return basket, created
 
 
 class BaseBasket(models.Model):
@@ -171,6 +181,8 @@ class BaseBasket(models.Model):
             )
         self._cached_items = None
         return item
+
+
 
     def remove(self, ref: str) -> None:
         """

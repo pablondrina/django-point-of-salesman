@@ -16,6 +16,8 @@ from rest_framework.serializers import BaseSerializer
 from salesman.basket.models import BaseBasket, BaseBasketItem
 from salesman.core.utils import get_salesman_model
 
+from rest_framework import mixins
+
 from .serializers import (
     BasketExtraSerializer,
     BasketItemCreateSerializer,
@@ -44,11 +46,31 @@ class BasketViewSet(viewsets.ModelViewSet):
             return "Basket Item"
         return name
 
+    # def get_basket(self) -> BaseBasket:
+    #     if self._basket:
+    #         return self._basket
+    #     basket: BaseBasket
+    #     basket, _ = Basket.objects.get_or_create_from_request(self.request)
+    #     self._basket = basket
+    #     return basket
+
+    # def get_basket(self) -> BaseBasket:
+    #     if self._basket and self._basket.hook_id:
+    #         print("self._basket.hook_id: ", self._basket.hook_id)
+    #         return self._basket
+    #     basket: BaseBasket
+    #     basket, _ = Basket.objects.get_or_create_from_request(self.request)
+    #     self._basket = basket
+    #     return basket
+
     def get_basket(self) -> BaseBasket:
-        if self._basket:
+        hook_id = self.request.data.get("hook_id", None)
+
+        if self._basket and (hook_id is None or self._basket.hook_id == hook_id):
             return self._basket
+
         basket: BaseBasket
-        basket, _ = Basket.objects.get_or_create_from_request(self.request)
+        basket, _ = Basket.objects.get_or_create_from_request(self.request, hook_id=hook_id)
         self._basket = basket
         return basket
 

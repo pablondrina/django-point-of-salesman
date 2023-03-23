@@ -168,6 +168,7 @@ SALESMAN_PAYMENT_METHODS = [
     "shop.payment.PayOnDelivery",
     "shop.payment.CreditCardPayment",
     "shop.payment.AdminPayment",
+    "shop.payment.PayAfterService",
 ]
 SALESMAN_ADDRESS_VALIDATOR = "shop.utils.custom_address_validator"
 SALESMAN_PRICE_FORMATTER = "shop.utils.custom_price_format"
@@ -178,6 +179,8 @@ SALESMAN_ORDER_MODEL = "shop.Order"
 SALESMAN_ORDER_ITEM_MODEL = "shop.OrderItem"
 SALESMAN_ORDER_PAYMENT_MODEL = "shop.OrderPayment"
 SALESMAN_ORDER_NOTE_MODEL = "shop.OrderNote"
+
+SALESMAN_ORDER_STATUS = "shop.status.OrderStatus"
 
 SALESMAN_ALLOW_ANONYMOUS_USER_CHECKOUT = True
 
